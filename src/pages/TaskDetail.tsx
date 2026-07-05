@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import CodeExerciseEditor from '../components/learning/CodeExerciseEditor';
 import Timer from '../components/learning/Timer';
 import { useAdmin } from '../context/AdminContext';
-import { LearningExercise, LearningTask, TaskComment, commentApi, learningApi, timeApi } from '../utils/learningApi';
+import { Flashcard, LearningExercise, LearningTask, TaskComment, commentApi, learningApi, timeApi } from '../utils/learningApi';
 
 type ActiveTimerResponse = { activeTimer: unknown | null };
 type PracticeTab = 'learn' | 'practice' | 'reflect';
@@ -76,6 +76,8 @@ export default function TaskDetail() {
   const [authorName, setAuthorName] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [showRoadmapPanel, setShowRoadmapPanel] = useState(() => localStorage.getItem('learningRoadmapPanelHidden') !== 'true');
+  const [showStudyPanel, setShowStudyPanel] = useState(() => localStorage.getItem('learningStudyPanelHidden') !== 'true');
   const [logDraft, setLogDraft] = useState({
     lessonSummary: '',
     practiceSummary: '',
@@ -92,6 +94,21 @@ export default function TaskDetail() {
   const primaryExercise = exercises[0] || DEFAULT_CODE_EXERCISE;
   const lessonSections = useMemo(() => getLessonSections(task), [task]);
   const currentProgress = allTasks.length ? Math.round(((currentIndex + 1) / allTasks.length) * 100) : 0;
+  const layoutColumns = showRoadmapPanel && showStudyPanel
+    ? 'xl:grid-cols-[300px_minmax(0,1fr)_320px]'
+    : showRoadmapPanel
+      ? 'xl:grid-cols-[300px_minmax(0,1fr)]'
+      : showStudyPanel
+        ? 'xl:grid-cols-[minmax(0,1fr)_320px]'
+        : 'xl:grid-cols-1';
+
+  useEffect(() => {
+    localStorage.setItem('learningRoadmapPanelHidden', String(!showRoadmapPanel));
+  }, [showRoadmapPanel]);
+
+  useEffect(() => {
+    localStorage.setItem('learningStudyPanelHidden', String(!showStudyPanel));
+  }, [showStudyPanel]);
 
   const fetchComments = useCallback(async (id: string) => {
     const response = await commentApi.getTaskComments(id);
@@ -217,15 +234,18 @@ export default function TaskDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-[#07111f] px-4 py-5 text-slate-100 sm:px-6">
-      <div className="mx-auto grid max-w-[1540px] gap-4 xl:grid-cols-[300px_minmax(0,1fr)_320px]">
-        <LearningTaskRail
-          allTasks={allTasks}
-          currentIndex={currentIndex}
-          navigate={navigate}
-          taskId={taskId}
-          phaseTitle={phaseTitle}
-        />
+    <div className="min-h-screen bg-[#07111f] px-3 py-4 text-slate-100 sm:px-5">
+      <div className={`mx-auto grid w-full max-w-[1780px] gap-4 ${layoutColumns}`}>
+        {showRoadmapPanel && (
+          <LearningTaskRail
+            allTasks={allTasks}
+            currentIndex={currentIndex}
+            navigate={navigate}
+            onCollapse={() => setShowRoadmapPanel(false)}
+            taskId={taskId}
+            phaseTitle={phaseTitle}
+          />
+        )}
 
         <main className="min-w-0 space-y-4">
           <SessionTopBar
@@ -235,6 +255,10 @@ export default function TaskDetail() {
             hasNext={hasNext}
             navigate={navigate}
             phaseTitle={phaseTitle}
+            showRoadmapPanel={showRoadmapPanel}
+            showStudyPanel={showStudyPanel}
+            toggleRoadmapPanel={() => setShowRoadmapPanel((value) => !value)}
+            toggleStudyPanel={() => setShowStudyPanel((value) => !value)}
           />
 
           <PracticeHeaderCard
@@ -249,7 +273,7 @@ export default function TaskDetail() {
           <PracticeTabs activeTab={activeTab} setActiveTab={setActiveTab} />
 
           <section className="rounded-2xl border border-slate-700/40 bg-[#0b1628]/90 p-4 shadow-[0_18px_70px_rgba(0,0,0,0.25)]">
-            {activeTab === 'learn' && <LearnTab lessonSections={lessonSections} exercise={primaryExercise} />}
+            {activeTab === 'learn' && <LearnTab lessonSections={lessonSections} exercise={primaryExercise} flashcards={task.flashcards || []} resources={task.resources || []} />}
             {activeTab === 'practice' && <PracticeWorkTab task={task} exercise={primaryExercise} isAuthenticated={isAuthenticated} />}
             {activeTab === 'reflect' && (
               <ReflectTab
@@ -290,16 +314,19 @@ export default function TaskDetail() {
           </div>
         </main>
 
-        <PracticeSidePanel
-          activeTimer={activeTimer}
-          isAuthenticated={isAuthenticated}
-          logDraft={logDraft}
-          setLogDraft={setLogDraft}
-          submitDailyLog={submitDailyLog}
-          submitting={submitting}
-          task={task}
-          updateStatus={updateStatus}
-        />
+        {showStudyPanel && (
+          <PracticeSidePanel
+            activeTimer={activeTimer}
+            isAuthenticated={isAuthenticated}
+            logDraft={logDraft}
+            onCollapse={() => setShowStudyPanel(false)}
+            setLogDraft={setLogDraft}
+            submitDailyLog={submitDailyLog}
+            submitting={submitting}
+            task={task}
+            updateStatus={updateStatus}
+          />
+        )}
       </div>
     </div>
   );
@@ -309,12 +336,14 @@ function LearningTaskRail({
   allTasks,
   currentIndex,
   navigate,
+  onCollapse,
   phaseTitle,
   taskId,
 }: {
   allTasks: LearningTask[];
   currentIndex: number;
   navigate: ReturnType<typeof useNavigate>;
+  onCollapse: () => void;
   phaseTitle: string;
   taskId?: string;
 }) {
@@ -325,6 +354,9 @@ function LearningTaskRail({
           <h2 className="text-sm font-semibold text-white">{phaseTitle}</h2>
           <div className="mt-1 text-xs text-slate-500">{currentIndex + 1} / {allTasks.length || 0}</div>
         </div>
+        <button onClick={onCollapse} className="rounded-lg border border-slate-700/60 px-2 py-1 text-xs text-slate-400 transition hover:bg-slate-800/70 hover:text-white">
+          Hide
+        </button>
       </div>
       <div className="mt-4 h-1.5 rounded-full bg-slate-800">
         <div className="h-full rounded-full bg-blue-500" style={{ width: allTasks.length ? `${((currentIndex + 1) / allTasks.length) * 100}%` : '0%' }} />
@@ -368,6 +400,10 @@ function SessionTopBar({
   hasPrevious,
   navigate,
   phaseTitle,
+  showRoadmapPanel,
+  showStudyPanel,
+  toggleRoadmapPanel,
+  toggleStudyPanel,
 }: {
   allTasks: LearningTask[];
   currentIndex: number;
@@ -375,6 +411,10 @@ function SessionTopBar({
   hasPrevious: boolean;
   navigate: ReturnType<typeof useNavigate>;
   phaseTitle: string;
+  showRoadmapPanel: boolean;
+  showStudyPanel: boolean;
+  toggleRoadmapPanel: () => void;
+  toggleStudyPanel: () => void;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-700/40 bg-[#0b1628]/80 px-4 py-3">
@@ -389,6 +429,12 @@ function SessionTopBar({
         <span className="text-blue-300">Practice Task</span>
       </div>
       <div className="flex items-center gap-2 text-sm text-slate-400">
+        <button onClick={toggleRoadmapPanel} className="rounded-lg border border-slate-700/60 px-3 py-1.5 text-xs transition hover:bg-slate-800 hover:text-white">
+          {showRoadmapPanel ? 'Hide roadmap' : 'Show roadmap'}
+        </button>
+        <button onClick={toggleStudyPanel} className="rounded-lg border border-slate-700/60 px-3 py-1.5 text-xs transition hover:bg-slate-800 hover:text-white">
+          {showStudyPanel ? 'Hide study panel' : 'Show study panel'}
+        </button>
         <span>{currentIndex + 1} / {allTasks.length || 0}</span>
         <button onClick={() => hasPrevious && navigate(`/task/${allTasks[currentIndex - 1]._id}`)} disabled={!hasPrevious} className="h-8 w-8 rounded-lg border border-slate-700/60 disabled:opacity-40">‹</button>
         <button onClick={() => hasNext && navigate(`/task/${allTasks[currentIndex + 1]._id}`)} disabled={!hasNext} className="h-8 w-8 rounded-lg border border-slate-700/60 disabled:opacity-40">›</button>
@@ -491,12 +537,232 @@ function PracticeTabs({ activeTab, setActiveTab }: { activeTab: PracticeTab; set
   );
 }
 
-function LearnTab({ exercise, lessonSections }: { exercise: LearningExercise; lessonSections: Array<{ title: string; content: string; order: number }> }) {
+function LearnTab({
+  exercise,
+  flashcards,
+  lessonSections,
+  resources,
+}: {
+  exercise: LearningExercise;
+  flashcards: Flashcard[];
+  lessonSections: Array<{ title: string; content: string; order: number }>;
+  resources: string[];
+}) {
+  const [activeStep, setActiveStep] = useState(0);
+  const concept = lessonSections.find((section) => /concept|theory/i.test(section.title))?.content;
+  const outcomes = lessonSections.find((section) => /outcome|achieve|objective/i.test(section.title))?.content;
+  const goal = lessonSections.find((section) => /goal|practice/i.test(section.title))?.content;
+  const connection = lessonSections.find((section) => /project|connection/i.test(section.title))?.content;
+  const outcomeItems = getOutcomeItems(outcomes);
+  const steps = [
+    {
+      label: 'Concept',
+      title: 'Understand the idea',
+      content: concept || 'Explain execution context, scope chain, hoisting rules, closures, prototype delegation, and call-site based this behavior.',
+      tone: 'blue' as const,
+    },
+    {
+      label: 'Practice Goal',
+      title: 'Know what to build',
+      content: goal || 'Implement tiny Node.js snippets that reproduce closure bugs in loops, this loss in callbacks, and prototype method shadowing. Then fix each issue and explain the before/after behavior.',
+      tone: 'green' as const,
+    },
+    {
+      label: 'Project Connection',
+      title: 'Connect it to real work',
+      content: connection || 'Connect the exercise to real backend work, such as Fruit Chop re-join logic, real-time multiplayer handlers, callback state bugs, shared mutation, and reconnect behavior.',
+      tone: 'orange' as const,
+    },
+    ...(outcomeItems.length
+      ? [{
+          label: 'Outcomes',
+          title: 'Check what you should achieve',
+          content: outcomeItems.join('\n'),
+          tone: 'blue' as const,
+          outcomes: outcomeItems,
+        }]
+      : []),
+  ];
+  const step = steps[activeStep] || steps[0];
+
   return (
     <div className="space-y-4">
-      <InstructionsTab lessonSections={lessonSections} />
-      <ExplanationTab lessonSections={lessonSections} exercise={exercise} />
+      <section className="rounded-2xl border border-slate-700/40 bg-[#0a1426] p-4">
+        <div className="flex flex-wrap gap-2">
+          {steps.map((item, index) => (
+            <button
+              key={item.label}
+              onClick={() => setActiveStep(index)}
+              className={`rounded-xl border px-3 py-2 text-sm transition ${activeStep === index ? 'border-blue-500 bg-blue-600 text-white shadow-[0_10px_30px_rgba(37,99,235,0.25)]' : 'border-slate-700/50 bg-slate-900/50 text-slate-400 hover:text-white'}`}
+            >
+              {index + 1}. {item.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <article className="rounded-2xl border border-slate-700/40 bg-[#0e1a2e] p-5">
+            <div className="flex items-start gap-4">
+              <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-sm font-semibold ${step.tone === 'green' ? 'bg-emerald-500/15 text-emerald-300' : step.tone === 'orange' ? 'bg-orange-500/15 text-orange-300' : 'bg-blue-500/15 text-blue-300'}`}>
+                {String(activeStep + 1).padStart(2, '0')}
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs uppercase tracking-[0.22em] text-blue-300">{step.label}</p>
+                <h3 className="mt-2 text-2xl font-semibold leading-tight text-white">{step.title}</h3>
+                {step.outcomes ? (
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                    {step.outcomes.map((item) => (
+                      <label key={item} className="flex items-start gap-3 rounded-xl border border-slate-700/40 bg-[#091426] p-3 text-sm leading-5 text-slate-300">
+                        <input type="checkbox" className="mt-1 accent-blue-500" />
+                        <span>{item}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <RichContent html={step.content} className="mt-4 text-base leading-8 text-slate-300" />
+                )}
+              </div>
+            </div>
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-700/40 pt-4">
+              <button
+                onClick={() => setActiveStep((value) => Math.max(0, value - 1))}
+                disabled={activeStep === 0}
+                className="rounded-xl border border-slate-700/60 px-4 py-2 text-sm text-slate-300 transition hover:bg-slate-800 disabled:opacity-40"
+              >
+                Previous step
+              </button>
+              <button
+                onClick={() => setActiveStep((value) => Math.min(steps.length - 1, value + 1))}
+                disabled={activeStep === steps.length - 1}
+                className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-40"
+              >
+                I got this, next
+              </button>
+            </div>
+          </article>
+
+          <aside className="space-y-3">
+            <div className="rounded-2xl border border-slate-700/40 bg-[#0e1a2e] p-4">
+              <h3 className="text-sm font-semibold text-white">Quick self-check</h3>
+              <div className="mt-4 space-y-3">
+                {[
+                  'Can I explain this without reading?',
+                  'Can I connect it to one project bug?',
+                  'Can I write one small code example?',
+                ].map((item) => (
+                  <label key={item} className="flex items-start gap-3 text-sm leading-5 text-slate-300">
+                    <input type="checkbox" className="mt-1 accent-blue-500" />
+                    <span>{item}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-blue-500/20 bg-blue-500/10 p-4">
+              <h3 className="text-sm font-semibold text-blue-100">Practice preview</h3>
+              <p className="mt-2 line-clamp-5 text-sm leading-6 text-blue-100/80">{exercise.prompt || DEFAULT_CODE_EXERCISE.prompt}</p>
+            </div>
+          </aside>
+        </div>
+      </section>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <ResourcePanel resources={resources} />
+        <FlashcardDeck flashcards={flashcards} />
+      </div>
     </div>
+  );
+}
+
+function ResourcePanel({ resources }: { resources: string[] }) {
+  const visibleResources = resources.filter(Boolean);
+  return (
+    <section className="rounded-2xl border border-slate-700/40 bg-[#0e1a2e] p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-base font-semibold text-white">Resources</h3>
+          <p className="mt-1 text-sm text-slate-500">Useful links or files connected to this topic.</p>
+        </div>
+        <span className="rounded-full border border-blue-500/25 bg-blue-500/10 px-3 py-1 text-xs text-blue-200">{visibleResources.length}</span>
+      </div>
+      {visibleResources.length ? (
+        <div className="mt-4 grid gap-2">
+          {visibleResources.map((resource) => (
+            <a
+              key={resource}
+              href={resource}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-xl border border-slate-700/40 bg-[#091426] px-3 py-2 text-sm text-blue-200 transition hover:border-blue-500/50 hover:bg-blue-500/10"
+            >
+              {resource}
+            </a>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-4 rounded-xl border border-dashed border-slate-700/60 bg-[#091426] p-4 text-sm text-slate-500">
+          No resources added yet. Admin can attach docs, videos, repo files, or reference links from the lesson editor.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function FlashcardDeck({ flashcards }: { flashcards: Flashcard[] }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [showAnswer, setShowAnswer] = useState(false);
+  const activeCard = flashcards[activeIndex];
+
+  const nextCard = () => {
+    if (!flashcards.length) return;
+    setShowAnswer(false);
+    setActiveIndex((index) => (index + 1) % flashcards.length);
+  };
+
+  const previousCard = () => {
+    if (!flashcards.length) return;
+    setShowAnswer(false);
+    setActiveIndex((index) => (index - 1 + flashcards.length) % flashcards.length);
+  };
+
+  return (
+    <section className="rounded-2xl border border-slate-700/40 bg-[#0e1a2e] p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-base font-semibold text-white">Flashcard Review</h3>
+          <p className="mt-1 text-sm text-slate-500">Test recall before moving to practice.</p>
+        </div>
+        <span className="text-xs text-slate-500">{flashcards.length ? `${activeIndex + 1}/${flashcards.length}` : '0/0'}</span>
+      </div>
+
+      {activeCard ? (
+        <>
+          <button
+            onClick={() => setShowAnswer((value) => !value)}
+            className="mt-4 min-h-[180px] w-full rounded-2xl border border-blue-500/25 bg-[radial-gradient(circle_at_20%_15%,rgba(37,99,235,0.18),transparent_36%),#091426] p-5 text-left transition hover:border-blue-500/50"
+          >
+            <p className="text-xs uppercase tracking-[0.2em] text-blue-300">{showAnswer ? 'Answer' : 'Question'}</p>
+            <p className="mt-4 text-lg font-semibold leading-7 text-white">
+              {showAnswer ? activeCard.answer : activeCard.question}
+            </p>
+            <p className="mt-5 text-xs text-slate-500">Click card to {showAnswer ? 'show question' : 'reveal answer'}.</p>
+          </button>
+          <div className="mt-4 grid grid-cols-4 gap-2">
+            {['Again', 'Hard', 'Good', 'Easy'].map((label) => (
+              <button key={label} onClick={nextCard} className="rounded-xl border border-slate-700/60 px-3 py-2 text-xs text-slate-300 transition hover:bg-slate-800 hover:text-white">
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="mt-3 flex justify-between gap-2">
+            <button onClick={previousCard} className="rounded-xl border border-slate-700/60 px-3 py-2 text-xs text-slate-300 transition hover:bg-slate-800">Previous</button>
+            <button onClick={nextCard} className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-500">Next card</button>
+          </div>
+        </>
+      ) : (
+        <p className="mt-4 rounded-xl border border-dashed border-slate-700/60 bg-[#091426] p-4 text-sm text-slate-500">
+          No flashcards added yet. Admin can add quick Q&A cards to turn this topic into active recall.
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -546,48 +812,46 @@ function ReflectTab(props: {
 
 function InstructionsTab({ lessonSections }: { lessonSections: Array<{ title: string; content: string; order: number }> }) {
   const concept = lessonSections.find((section) => /concept|theory/i.test(section.title))?.content;
+  const outcomes = lessonSections.find((section) => /outcome|achieve|objective/i.test(section.title))?.content;
   const goal = lessonSections.find((section) => /goal|practice/i.test(section.title))?.content;
   const connection = lessonSections.find((section) => /project|connection/i.test(section.title))?.content;
+  const outcomeItems = getOutcomeItems(outcomes);
 
   return (
     <div className="space-y-4">
       <div className="grid gap-4 lg:grid-cols-3">
         <InstructionCard
-          icon="book"
+          icon="01"
           title="Concept"
           content={concept || 'Explain execution context, scope chain, hoisting rules, closures, prototype delegation, and call-site based this behavior.'}
           tone="blue"
         />
         <InstructionCard
-          icon="target"
+          icon="02"
           title="Practice Goal"
           content={goal || 'Implement tiny Node.js snippets that reproduce closure bugs in loops, this loss in callbacks, and prototype method shadowing. Then fix each issue and explain the before/after behavior.'}
           tone="green"
         />
         <InstructionCard
-          icon="rocket"
+          icon="03"
           title="Project Connection"
           content={connection || 'Connect the exercise to real backend work, such as Fruit Chop re-join logic, real-time multiplayer handlers, callback state bugs, shared mutation, and reconnect behavior.'}
           tone="orange"
         />
       </div>
-      <section className="rounded-2xl border border-slate-700/40 bg-[#0e1a2e] p-4">
-        <h3 className="text-base font-semibold text-white">What you will achieve</h3>
+      {outcomeItems.length > 0 && (
+        <section className="rounded-2xl border border-slate-700/40 bg-[#0e1a2e] p-4">
+          <h3 className="text-base font-semibold text-white">What you will achieve</h3>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          {[
-            'Understand how JS engine executes code',
-            'Explain in interviews with confidence',
-            'Build intuition for tricky real-world bugs',
-            'Connect concepts to real Node.js scenarios',
-            'Write clean, bug-free backend code',
-          ].map((item) => (
+          {outcomeItems.map((item) => (
             <div key={item} className="flex items-center gap-2 text-sm text-slate-300">
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/20 text-xs text-emerald-300">✓</span>
               {item}
             </div>
           ))}
         </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 }
@@ -632,7 +896,7 @@ function ExplanationTab({ exercise, lessonSections }: { exercise: LearningExerci
       {lessonSections.map((section) => (
         <section key={`${section.title}-${section.order}`} className="rounded-2xl border border-slate-700/40 bg-[#0e1a2e] p-4">
           <p className="text-xs uppercase tracking-[0.2em] text-blue-300">{section.title}</p>
-          <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-300">{section.content}</p>
+          <RichContent html={section.content} className="mt-3 text-sm leading-7 text-slate-300" />
         </section>
       ))}
       <section className="rounded-2xl border border-slate-700/40 bg-[#0e1a2e] p-4">
@@ -695,6 +959,7 @@ function PracticeSidePanel({
   activeTimer,
   isAuthenticated,
   logDraft,
+  onCollapse,
   setLogDraft,
   submitDailyLog,
   submitting,
@@ -711,6 +976,7 @@ function PracticeSidePanel({
     notes: string;
     confidenceScore: string;
   };
+  onCollapse: () => void;
   setLogDraft: (draft: {
     lessonSummary: string;
     practiceSummary: string;
@@ -727,7 +993,12 @@ function PracticeSidePanel({
   return (
     <aside className="space-y-4">
       <section className="rounded-2xl border border-slate-700/40 bg-[#081322]/95 p-4">
-        <h2 className="text-sm font-semibold text-white">Session Timer</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-white">Session Timer</h2>
+          <button onClick={onCollapse} className="rounded-lg border border-slate-700/60 px-2 py-1 text-xs text-slate-400 transition hover:bg-slate-800/70 hover:text-white">
+            Hide
+          </button>
+        </div>
         <div className="mt-3">
           <Timer taskId={task._id} activeTimer={activeTimer} totalTimeSpent={task.totalTimeSpent} />
         </div>
@@ -786,13 +1057,14 @@ function PracticeSidePanel({
 
 function InstructionCard({ content, icon, title, tone }: { content: string; icon: string; title: string; tone: 'blue' | 'green' | 'orange' }) {
   const toneClass = tone === 'green' ? 'bg-emerald-500/15 text-emerald-300' : tone === 'orange' ? 'bg-orange-500/15 text-orange-300' : 'bg-blue-500/15 text-blue-300';
+  const summary = getLearningSummary(content);
   return (
-    <article className="rounded-2xl border border-slate-700/40 bg-[#0e1a2e] p-4">
+    <article className="min-h-[210px] rounded-2xl border border-slate-700/40 bg-[#0e1a2e] p-5">
       <div className="flex items-start gap-3">
-        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-semibold ${toneClass}`}>{icon}</span>
+        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xs font-semibold ${toneClass}`}>{icon}</span>
         <div>
           <h3 className="text-base font-semibold text-white">{title}</h3>
-          <p className="mt-2 text-sm leading-6 text-slate-300">{content}</p>
+          <p className="mt-3 line-clamp-5 text-sm leading-6 text-slate-300">{summary}</p>
         </div>
       </div>
     </article>
@@ -810,6 +1082,15 @@ function LogTextarea({ label, onChange, value }: { label: string; onChange: (val
       <span className="text-xs text-slate-500">{label}</span>
       <textarea value={value} onChange={(event) => onChange(event.target.value)} rows={2} className="mt-1 w-full resize-none rounded-xl border border-slate-700/60 bg-slate-900/80 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-500 focus:border-blue-500" />
     </label>
+  );
+}
+
+function RichContent({ className = '', html }: { className?: string; html: string }) {
+  return (
+    <div
+      className={`prose-rich max-w-none ${className}`}
+      dangerouslySetInnerHTML={{ __html: sanitizeLessonHtml(html) }}
+    />
   );
 }
 
@@ -846,6 +1127,37 @@ function cleanText(value?: string) {
     .replace(/&nbsp;/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function getLearningSummary(value: string) {
+  const text = cleanText(value);
+  if (!text) return '';
+  const firstParagraph = text.split(/\n{2,}|(?<=\.)\s+(?=[A-Z])/)[0]?.trim() || text;
+  return firstParagraph.length > 180 ? `${firstParagraph.slice(0, 177).trim()}...` : firstParagraph;
+}
+
+function getOutcomeItems(value?: string) {
+  if (!value) return [];
+  const html = sanitizeLessonHtml(value);
+  const listItems = [...html.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)]
+    .map((match) => cleanText(match[1]))
+    .filter(Boolean);
+
+  if (listItems.length > 0) return listItems.slice(0, 8);
+
+  return cleanText(html)
+    .split(/\n+|•|- /)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 8);
+}
+
+function sanitizeLessonHtml(value: string) {
+  return (value || '')
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+    .replace(/\son\w+="[^"]*"/gi, '')
+    .replace(/\son\w+='[^']*'/gi, '')
+    .replace(/javascript:/gi, '');
 }
 
 function formatStatus(status: LearningTask['status']) {

@@ -24,9 +24,18 @@ const formatTopicStatus = (status: LearningTask['status']) => {
   if (status === 'revised') return 'Revised';
   return 'Completed';
 };
+const cleanText = (value?: string) => {
+  return (value || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
 
-const getTaskSummary = (task: LearningTask) =>
-  task.lessonSections?.slice().sort((a, b) => a.order - b.order)[0]?.content || task.exercise?.prompt || task.description || task.aim || '';
+const getTaskSummary = (task: LearningTask) => {
+  const raw = task.lessonSections?.slice().sort((a, b) => a.order - b.order)[0]?.content || task.exercise?.prompt || task.description || task.aim || '';
+  return cleanText(raw);
+};
 
 export default function PlanDetail() {
   const { id } = useParams<{ id: string }>();
@@ -107,17 +116,17 @@ export default function PlanDetail() {
   return (
     <div className={`min-h-screen px-4 py-8 sm:px-6 ${theme === 'dark' ? 'bg-[#0f1529] text-white' : 'bg-gray-100 text-gray-900'}`}>
       <div className="mx-auto max-w-7xl space-y-6">
-        <button onClick={() => navigate('/learning')} className={theme === 'dark' ? 'text-sm text-blue-300' : 'text-sm text-blue-600'}>
-          Back to learning plans
+        <button onClick={() => navigate('/learning')} className={theme === 'dark' ? 'text-sm text-blue-300 hover:text-blue-200 transition-colors' : 'text-sm text-blue-600 hover:text-blue-500 transition-colors'}>
+          &larr; Back to learning plans
         </button>
 
-        <section className={`rounded-xl border p-5 ${theme === 'dark' ? 'border-gray-800 bg-[#10182c]' : 'border-gray-300 bg-white'}`}>
-          <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
+        <section className={`rounded-2xl border p-6 transition-all duration-300 ${theme === 'dark' ? 'border-gray-800 bg-gradient-to-br from-[#10182c] to-[#0e1628]' : 'border-gray-300 bg-white shadow-sm'}`}>
+          <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
             <div>
-              <p className="text-xs uppercase tracking-[0.25em] text-blue-400">Roadmap</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-5xl">{detail.plan.title}</h1>
-              {detail.plan.description && <p className={`mt-4 max-w-3xl leading-7 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{detail.plan.description}</p>}
-              <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+              <p className="text-xs uppercase tracking-[0.25em] text-blue-400 font-semibold">Roadmap</p>
+              <h1 className={`mt-2 text-3xl font-bold tracking-tight md:text-4xl ${theme === 'dark' ? 'text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-slate-400' : 'text-gray-900'}`}>{detail.plan.title}</h1>
+              {detail.plan.description && <p className={`mt-4 max-w-3xl leading-7 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{detail.plan.description}</p>}
+              <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
                 <Metric label="Progress" value={`${totalProgress}%`} />
                 <Metric label="Tasks" value={`${completedTasks}/${orderedTasks.length}`} />
                 <Metric label="Today" value={formatDuration(stats.todaySeconds)} />
@@ -125,61 +134,115 @@ export default function PlanDetail() {
               </div>
             </div>
 
-            <div className={`rounded-lg border p-4 ${theme === 'dark' ? 'border-blue-500/20 bg-blue-500/10' : 'border-blue-200 bg-blue-50'}`}>
-              <p className="text-xs uppercase tracking-[0.2em] text-blue-400">Current Lesson</p>
-              {currentTask ? (
-                <>
-                  <h2 className="mt-3 text-xl font-semibold">{currentTask.title}</h2>
-                  <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{getTaskSummary(currentTask) || 'Continue your next learning task.'}</p>
-                  <button onClick={() => navigate(`/task/${currentTask._id}`)} className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500">
-                    Open Study Page
-                  </button>
-                </>
-              ) : (
-                <p className="mt-3 text-sm text-gray-400">No tasks in this roadmap yet.</p>
+            <div className={`rounded-xl border p-5 flex flex-col justify-between ${theme === 'dark' ? 'border-blue-500/20 bg-[#16223f]/60' : 'border-blue-200 bg-blue-50'}`}>
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-blue-400 font-semibold">Current Lesson</p>
+                {currentTask ? (
+                  <>
+                    <h2 className={`mt-3 text-lg font-bold leading-snug ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{currentTask.title}</h2>
+                    <p className={`mt-2 text-xs leading-5 line-clamp-3 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{getTaskSummary(currentTask) || 'Continue your next learning task.'}</p>
+                  </>
+                ) : (
+                  <p className="mt-3 text-xs text-gray-400">No tasks in this roadmap yet.</p>
+                )}
+              </div>
+              {currentTask && (
+                <button onClick={() => navigate(`/task/${currentTask._id}`)} className="mt-4 w-full rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-blue-500 transition-colors shadow-md hover:shadow-blue-500/10">
+                  Open Study Page
+                </button>
               )}
             </div>
           </div>
         </section>
 
         <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
-          <section className="space-y-4">
+          <section className="relative pl-6 sm:pl-8 space-y-8 py-4">
+            {/* Continuous vertical timeline path line */}
+            <div className={`absolute left-[11px] sm:left-[15px] top-0 bottom-0 w-0.5 ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-200'}`} />
+
             {phaseRows.map(({ phase, tasks, completed, progress }) => (
-              <div key={phase._id} className={`rounded-xl border ${theme === 'dark' ? 'border-gray-800 bg-[#10182c]' : 'border-gray-300 bg-white'}`}>
-                <div className={`border-b p-4 ${theme === 'dark' ? 'border-gray-800' : 'border-gray-200'}`}>
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Phase {phase.order}</p>
-                      <h2 className="mt-1 text-2xl font-semibold">{phase.title}</h2>
-                    </div>
-                    <div className="text-sm text-gray-400">{completed}/{tasks.length} completed</div>
-                  </div>
-                  {phase.description && <p className={`mt-3 text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{phase.description}</p>}
-                  <div className={`mt-4 h-2 overflow-hidden rounded-full ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-200'}`}>
-                    <div className="h-full rounded-full bg-blue-500" style={{ width: `${progress}%` }} />
-                  </div>
+              <div key={phase._id} className="relative space-y-4">
+                {/* Timeline node marker */}
+                <div className={`absolute -left-[21px] sm:-left-[25px] top-1 flex h-6 w-6 items-center justify-center rounded-full border-2 transition-colors ${
+                  theme === 'dark' ? 'bg-[#0f1529]' : 'bg-gray-100'
+                } ${
+                  progress === 100 
+                    ? 'border-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]' 
+                    : progress > 0 
+                      ? 'border-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.4)]' 
+                      : 'border-gray-500 dark:border-gray-700'
+                }`}>
+                  <span className={`h-2 w-2 rounded-full ${
+                    progress === 100 
+                      ? 'bg-green-500' 
+                      : progress > 0 
+                        ? 'bg-blue-500' 
+                        : 'bg-gray-500 dark:bg-gray-700'
+                  }`} />
                 </div>
 
-                <div className={`divide-y ${theme === 'dark' ? 'divide-gray-800' : 'divide-gray-200'}`}>
+                {/* Phase content header */}
+                <div className="flex flex-col gap-1 pl-1">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-400">Phase {phase.order}</span>
+                  <div className="flex flex-col gap-1.5 sm:flex-row sm:items-baseline sm:justify-between">
+                    <h2 className={`text-xl font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{phase.title}</h2>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">{completed}/{tasks.length} completed ({progress}%)</span>
+                  </div>
+                  {phase.description && <p className={`text-xs leading-5 max-w-3xl mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{phase.description}</p>}
+                </div>
+
+                {/* Tasks list in timeline */}
+                <div className="space-y-3 pl-1">
                   {tasks.map((task) => (
                     <button
                       key={task._id}
                       onClick={() => navigate(`/task/${task._id}`)}
-                      className={`grid w-full gap-3 p-4 text-left transition sm:grid-cols-[1fr_120px_90px] ${theme === 'dark' ? 'hover:bg-[#16223a]' : 'hover:bg-gray-50'}`}
+                      className={`group relative grid w-full gap-4 rounded-xl border p-4 text-left transition-all duration-300 md:grid-cols-[1fr_120px_100px] ${
+                        theme === 'dark'
+                          ? 'border-gray-800 bg-[#16223f]/25 hover:border-blue-500/30 hover:bg-[#16223f]/50 hover:shadow-lg hover:shadow-blue-500/5'
+                          : 'border-gray-200 bg-white hover:border-blue-500/30 hover:bg-gray-50 hover:shadow-md'
+                      }`}
                     >
-                      <div>
+                      <div className="flex flex-col gap-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className={`rounded-full border px-2 py-0.5 text-[11px] capitalize ${theme === 'dark' ? 'border-gray-700 text-gray-300' : 'border-gray-300 text-gray-700'}`}>{formatTopicStatus(task.status)}</span>
-                          {typeof task.confidenceScore === 'number' && <span className="text-[11px] text-blue-400">Confidence {Math.min(5, Math.max(1, Math.round(task.confidenceScore)))}/5</span>}
+                          <span className={`flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold tracking-wider uppercase rounded-full border ${
+                            task.status === 'completed' 
+                              ? 'bg-green-500/10 text-green-400 border-green-500/20' 
+                              : task.status === 'in-progress' || task.status === 'learning' || task.status === 'practiced' || task.status === 'revised'
+                                ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' 
+                                : 'bg-gray-500/10 text-gray-400 border-gray-500/20'
+                          }`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${
+                              task.status === 'completed' 
+                                ? 'bg-green-400 animate-pulse' 
+                                : task.status === 'in-progress' || task.status === 'learning' || task.status === 'practiced' || task.status === 'revised'
+                                  ? 'bg-blue-400 animate-pulse' 
+                                  : 'bg-gray-400'
+                            }`} />
+                            {formatTopicStatus(task.status)}
+                          </span>
+                          {typeof task.confidenceScore === 'number' && (
+                            <span className="text-[9px] font-bold tracking-wider uppercase border border-purple-500/25 bg-purple-500/10 px-2 py-0.5 rounded-full text-purple-300">
+                              Confidence {Math.min(5, Math.max(1, Math.round(task.confidenceScore)))}/5
+                            </span>
+                          )}
                         </div>
-                        <h3 className="mt-2 text-base font-semibold">{task.title}</h3>
-                        <p className={`mt-1 line-clamp-2 text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{getTaskSummary(task)}</p>
+                        <h3 className={`mt-1.5 text-base font-semibold group-hover:text-blue-500 transition-colors duration-200 ${theme === 'dark' ? 'text-slate-100 group-hover:text-blue-400' : 'text-slate-800'}`}>{task.title}</h3>
+                        <p className={`mt-1 line-clamp-2 text-xs leading-5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{getTaskSummary(task)}</p>
                       </div>
-                      <div className="text-sm text-gray-400">{formatDuration(task.totalTimeSpent)}</div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-400">{statusProgress(task.status)}%</span>
-                        <div className={`h-1.5 flex-1 rounded-full ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-200'}`}>
-                          <div className="h-full rounded-full bg-green-500" style={{ width: `${statusProgress(task.status)}%` }} />
+                      <div className="flex flex-col justify-center text-xs">
+                        <span className="text-gray-500 dark:text-gray-400/60 uppercase tracking-wider text-[8px] font-bold font-mono">Time Spent</span>
+                        <span className={`font-semibold mt-0.5 font-mono ${theme === 'dark' ? 'text-slate-200' : 'text-slate-700'}`}>{formatDuration(task.totalTimeSpent)}</span>
+                      </div>
+                      <div className="flex flex-col justify-center gap-1">
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="text-gray-500 dark:text-gray-400/60 uppercase tracking-wider text-[8px] font-bold font-mono">Progress</span>
+                          <span className={`font-bold font-mono ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>{statusProgress(task.status)}%</span>
+                        </div>
+                        <div className={`h-1 w-full rounded-full overflow-hidden ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-200'}`}>
+                          <div className={`h-full rounded-full transition-all duration-500 ${
+                            task.status === 'completed' ? 'bg-green-500' : 'bg-blue-500'
+                          }`} style={{ width: `${statusProgress(task.status)}%` }} />
                         </div>
                       </div>
                     </button>
@@ -190,8 +253,8 @@ export default function PlanDetail() {
           </section>
 
           <aside className="space-y-4">
-            <div className={`rounded-xl border p-4 ${theme === 'dark' ? 'border-gray-800 bg-[#10182c]' : 'border-gray-300 bg-white'}`}>
-              <h2 className="text-lg font-semibold">Study Totals</h2>
+            <div className={`rounded-2xl border p-5 transition-all duration-300 ${theme === 'dark' ? 'border-gray-800 bg-[#10182c]/80' : 'border-gray-300 bg-white shadow-sm'}`}>
+              <h2 className={`text-base font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-200' : 'text-slate-700'}`}>Study Totals</h2>
               <div className="mt-4 space-y-3 text-sm">
                 <MetricLine label="Roadmap time" value={formatDuration(stats.totalSeconds)} />
                 <MetricLine label="Today" value={formatDuration(stats.todaySeconds)} />
@@ -199,19 +262,19 @@ export default function PlanDetail() {
               </div>
             </div>
 
-            <div className={`rounded-xl border p-4 ${theme === 'dark' ? 'border-gray-800 bg-[#10182c]' : 'border-gray-300 bg-white'}`}>
-              <h2 className="text-lg font-semibold">Recent Daily Logs</h2>
+            <div className={`rounded-2xl border p-5 transition-all duration-300 ${theme === 'dark' ? 'border-gray-800 bg-[#10182c]/80' : 'border-gray-300 bg-white shadow-sm'}`}>
+              <h2 className={`text-base font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-200' : 'text-slate-700'}`}>Recent Daily Logs</h2>
               <div className="mt-4 space-y-3">
                 {dailyLogs.length === 0 ? (
-                  <p className="text-sm text-gray-500">No daily logs yet. Add one from a study page.</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">No daily logs yet. Add one from a study page.</p>
                 ) : (
                   dailyLogs.map((log) => (
-                    <div key={log._id} className={`rounded-lg border p-3 ${theme === 'dark' ? 'border-gray-800 bg-[#0d1426]' : 'border-gray-200 bg-gray-50'}`}>
-                      <div className="flex items-center justify-between gap-2 text-xs text-gray-500">
+                    <div key={log._id} className={`rounded-xl border p-4 transition-all ${theme === 'dark' ? 'border-gray-800 bg-[#0d1426]' : 'border-gray-200 bg-gray-50'}`}>
+                      <div className="flex items-center justify-between gap-2 text-[10px] text-gray-500 font-mono">
                         <span>{new Date(log.date).toLocaleDateString()}</span>
-                        {typeof log.confidenceScore === 'number' && <span>{log.confidenceScore}/10</span>}
+                        {typeof log.confidenceScore === 'number' && <span className="text-purple-400">Confidence {log.confidenceScore}/10</span>}
                       </div>
-                      <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{log.notes || log.practiceSummary || log.doubts || 'Learning log added.'}</p>
+                      <p className={`mt-2.5 text-xs leading-5 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{log.notes || log.practiceSummary || log.doubts || 'Learning log added.'}</p>
                     </div>
                   ))
                 )}
@@ -226,9 +289,9 @@ export default function PlanDetail() {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-gray-700/40 bg-gray-900/20 p-3">
-      <div className="text-xs uppercase tracking-wide text-gray-500">{label}</div>
-      <div className="mt-1 text-xl font-semibold">{value}</div>
+    <div className="rounded-xl border border-slate-200 dark:border-gray-700/40 bg-slate-50 dark:bg-gray-900/20 p-3">
+      <div className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">{label}</div>
+      <div className="mt-1 text-lg font-semibold">{value}</div>
     </div>
   );
 }

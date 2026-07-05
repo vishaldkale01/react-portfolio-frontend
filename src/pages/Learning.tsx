@@ -91,45 +91,47 @@ export default function Learning() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.06 }}
                 onClick={() => navigate(`/learning/${plan._id}`)}
-                className={`text-left border rounded-xl overflow-hidden transition-colors ${
+                className={`group text-left border rounded-2xl overflow-hidden transition-all duration-300 ${
                   theme === 'dark'
-                    ? 'border-gray-800 bg-[#1a2438] hover:bg-[#1d2940]'
-                    : 'border-gray-300 bg-white hover:bg-gray-50'
+                    ? 'border-gray-800 bg-[#141b2d] hover:border-blue-500/40 hover:bg-[#182239] hover:shadow-[0_20px_50px_rgba(59,130,246,0.06)]'
+                    : 'border-gray-200 bg-white hover:border-blue-500/30 hover:bg-gray-50 hover:shadow-xl'
                 }`}
               >
                 <div className="p-6">
                   <div className="flex items-start justify-between gap-2 mb-4">
-                    <span className={`px-3 py-1 text-xs uppercase rounded-full border ${getStatusClass(plan.status)}`}>
+                    <span className={`px-3 py-1 text-[10px] tracking-wider uppercase rounded-full border font-bold ${getStatusClass(plan.status)}`}>
                       {plan.status}
                     </span>
                     {plan.targetEndDate && (
-                      <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>Target: {new Date(plan.targetEndDate).toLocaleDateString()}</span>
+                      <span className={`text-[11px] font-mono ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>Target: {new Date(plan.targetEndDate).toLocaleDateString()}</span>
                     )}
                   </div>
 
-                  <h3 className={`text-3xl font-mono font-bold leading-tight mb-3 line-clamp-2 ${theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>{plan.title}</h3>
+                  <h3 className={`text-2xl font-mono font-bold leading-tight mb-3 line-clamp-2 transition-colors duration-200 group-hover:text-blue-400 ${theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>{plan.title}</h3>
 
-                  {plan.description && <p className={`text-sm leading-7 line-clamp-3 mb-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{plan.description}</p>}
+                  {plan.description && <p className={`text-xs leading-5 line-clamp-3 mb-5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{plan.description}</p>}
 
                   {plan.goals && plan.goals.length > 0 && (
                     <div className="mb-2">
-                      <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Goals</p>
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-2">Key Goals</p>
                       <ul className="space-y-1.5">
                         {plan.goals.slice(0, 3).map((goal, i) => (
-                          <li key={i} className={`text-sm flex items-start ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                            <span className="text-blue-400 mr-2">•</span>
+                          <li key={i} className={`text-xs flex items-start ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                            <span className="text-blue-400 mr-2 font-bold">•</span>
                             <span className="line-clamp-1">{goal}</span>
                           </li>
                         ))}
-                        {plan.goals.length > 3 && <li className="text-xs text-gray-500">+{plan.goals.length - 3} more</li>}
+                        {plan.goals.length > 3 && <li className="text-[10px] text-gray-500 font-mono font-semibold">+{plan.goals.length - 3} more</li>}
                       </ul>
                     </div>
                   )}
                 </div>
 
-                <div className={`px-6 py-4 border-t flex justify-between text-sm ${theme === 'dark' ? 'border-gray-800 bg-[#172133]' : 'border-gray-200 bg-gray-50'}`}>
-                  <span className="text-gray-500">Created {new Date(plan.createdAt).toLocaleDateString()}</span>
-                  <span className="text-blue-300">View Details →</span>
+                <div className={`px-6 py-4 border-t flex justify-between items-center text-xs ${theme === 'dark' ? 'border-gray-800 bg-[#111827]/40' : 'border-gray-200 bg-gray-50/50'}`}>
+                  <span className="text-gray-500 font-mono">Created {new Date(plan.createdAt).toLocaleDateString()}</span>
+                  <span className="text-blue-400 group-hover:text-blue-300 font-bold flex items-center gap-1 transition-colors duration-200">
+                    View Details <span className="transform transition-transform duration-200 group-hover:translate-x-1">&rarr;</span>
+                  </span>
                 </div>
               </motion.button>
             ))}

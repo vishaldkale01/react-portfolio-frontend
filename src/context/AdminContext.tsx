@@ -32,7 +32,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const response = await api.get<{ valid: boolean }>('/admin/verify');
+      const response = await api.post<{ valid: boolean }>('/admin/verify', {});
       if ('error' in response) throw new Error(response.error);
       setIsAuthenticated(true);
     } catch (error) {

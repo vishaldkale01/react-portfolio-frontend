@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { EditorContent, useEditor } from '@tiptap/react';
+import { Mark, mergeAttributes, Node as TiptapNode } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { LearningExercise, LearningPlan, LearningTask, LessonSection, Phase, PlanDetail as PlanDetailType, TaskComment, commentApi, learningApi } from '../../utils/learningApi';
 import { useTheme } from '../../context/ThemeContext';
@@ -12,6 +13,84 @@ const TASK_STATUS_OPTIONS: Array<{ value: LearningTask['status']; label: string 
   { value: 'revised', label: 'Revised' },
   { value: 'completed', label: 'Completed' },
 ];
+
+const ImageBlock = TiptapNode.create({
+  name: 'imageBlock',
+  group: 'block',
+  atom: true,
+  addAttributes() {
+    return {
+      src: { default: null },
+      alt: { default: 'Learning visual' },
+    };
+  },
+  parseHTML() {
+    return [{ tag: 'img[src]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['img', mergeAttributes(HTMLAttributes)];
+  },
+});
+
+const LinkMark = Mark.create({
+  name: 'link',
+  inclusive: false,
+  addAttributes() {
+    return {
+      href: { default: null },
+      target: { default: '_blank' },
+      rel: { default: 'noreferrer' },
+    };
+  },
+  parseHTML() {
+    return [{ tag: 'a[href]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['a', mergeAttributes(HTMLAttributes), 0];
+  },
+});
+
+function stripLearningHtml(value?: string) {
+  return (value || '')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<li[^>]*>/gi, ' - ')
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<\/p>|<\/div>|<\/h[1-6]>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function summarizeLearningHtml(value?: string, maxLength = 180) {
+  const text = stripLearningHtml(value);
+  if (!text) return 'Add learning material for this section.';
+  return text.length > maxLength ? `${text.slice(0, maxLength - 3).trim()}...` : text;
+}
+
+function sanitizeLearningHtml(value: string) {
+  return (value || '')
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
+    .replace(/\son\w+="[^"]*"/gi, '')
+    .replace(/\son\w+='[^']*'/gi, '')
+    .replace(/javascript:/gi, '');
+}
+
+function LearningRichContent({ className = '', html }: { className?: string; html: string }) {
+  return (
+    <div
+      className={`prose-rich max-w-none ${className}`}
+      dangerouslySetInnerHTML={{ __html: sanitizeLearningHtml(html) }}
+    />
+  );
+}
 
 export default function LearningManagementPanel() {
   useTheme();
@@ -1219,6 +1298,7 @@ export default function LearningManagementPanel() {
                   saveNotes={saveNotes}
                   submitComment={submitComment}
                   updateSelectedTaskInline={updateSelectedTaskInline}
+                  showOptionsPanel={showOptionsPanel}
                 />
               </section>
 
@@ -1402,6 +1482,7 @@ function LessonWorkspace({
   saveNotes,
   submitComment,
   updateSelectedTaskInline,
+  showOptionsPanel,
 }: {
   activeTab: LessonTab;
   codeLanguage: 'javascript' | 'python';
@@ -1454,6 +1535,7 @@ function LessonWorkspace({
   saveNotes: () => void;
   submitComment: () => void;
   updateSelectedTaskInline: (payload: Partial<LearningTask>, options?: { skipRefetch?: boolean; skipLocalUpdate?: boolean }) => Promise<void>;
+  showOptionsPanel: boolean;
 }) {
   const description = normalizeDescription(detailDraft.description || selectedTask.description || '');
   const exercises = detailDraft.exercises.length ? detailDraft.exercises : [createExerciseDraft(1)];
@@ -1469,7 +1551,7 @@ function LessonWorkspace({
   return (
     <div className="w-full px-6 md:px-8 xl:px-9 py-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0 max-w-[780px]">
+        <div className={`min-w-0 ${showOptionsPanel ? 'max-w-[780px]' : 'max-w-[1120px]'}`}>
           <div className="mb-4 text-xs text-gray-500">
             <span className="text-[#2f7cff]">Learning</span>
             <span className="mx-2">/</span>
@@ -1511,7 +1593,7 @@ function LessonWorkspace({
                 updateSelectedTaskInline({ description: cleaned });
               }
             }}
-            className={`mt-3 max-w-[760px] outline-none text-[14px] leading-[1.7] ${isDark ? 'text-slate-300' : 'text-gray-600'}`}
+            className={`mt-3 outline-none text-[14px] leading-[1.7] ${showOptionsPanel ? 'max-w-[760px]' : 'max-w-[1060px]'} ${isDark ? 'text-slate-300' : 'text-gray-600'}`}
           >
             {description || 'Add a short lesson description...'}
           </p>
@@ -1550,7 +1632,7 @@ function LessonWorkspace({
         </div>
       </div>
 
-      <div className="mt-6 max-w-[980px]">
+      <div className={`mt-6 ${showOptionsPanel ? 'max-w-[980px]' : 'max-w-none'}`}>
         {activeTab === 'overview' && <OverviewTab selectedTask={selectedTask} isDark={isDark} />}
         {activeTab === 'theory' && (
           <TheoryTab
@@ -1596,7 +1678,7 @@ function LessonWorkspace({
         )}
       </div>
 
-      <div className={`mt-8 border-t pt-6 max-w-[860px] ${isDark ? 'border-[#172945]' : 'border-gray-200'}`}>
+      <div className={`mt-8 border-t pt-6 ${showOptionsPanel ? 'max-w-[860px]' : 'max-w-none'} ${isDark ? 'border-[#172945]' : 'border-gray-200'}`}>
         <h4 className={`text-[18px] font-semibold mb-4 ${textPrimary}`}>Comments</h4>
         <div className="space-y-3 mb-4">
           {commentsLoading ? (
@@ -1703,10 +1785,12 @@ function TheoryTab({
           <div className={`flex h-10 w-10 items-center justify-center rounded-full ${card.color}`}>{index + 1}</div>
           <div>
             <h3 className="text-base font-semibold text-gray-100">{card.title}</h3>
-            <p className="mt-2 text-sm leading-6 text-gray-400">{card.content}</p>
-            <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-gray-500">
-              {card.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}
-            </ul>
+            <LearningRichContent html={card.content} className="mt-2 text-sm leading-7 text-gray-300" />
+            {card.bullets.length > 0 && (
+              <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-gray-500">
+                {card.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}
+              </ul>
+            )}
           </div>
           <div className="rounded-lg border border-[#244266] bg-[#0d1d35] p-3 text-xs leading-5 text-blue-200">
             <div className="mb-1 font-semibold text-blue-300">{card.calloutTitle}</div>
@@ -1744,11 +1828,14 @@ function SimpleLearningMaterialEditor({
 }) {
   const getSectionContent = (pattern: RegExp) => sections.find((section) => pattern.test(section.title))?.content || '';
   const [concept, setConcept] = useState(() => getSectionContent(/concept|theory|learn/i));
+  const [outcomes, setOutcomes] = useState(() => getSectionContent(/outcome|achieve|objective/i));
   const [practiceGoal, setPracticeGoal] = useState(() => getSectionContent(/practice|goal|exercise/i));
   const [projectConnection, setProjectConnection] = useState(() => getSectionContent(/project|connection|real/i));
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     setConcept(getSectionContent(/concept|theory|learn/i));
+    setOutcomes(getSectionContent(/outcome|achieve|objective/i));
     setPracticeGoal(getSectionContent(/practice|goal|exercise/i));
     setProjectConnection(getSectionContent(/project|connection|real/i));
   }, [sections]);
@@ -1756,11 +1843,12 @@ function SimpleLearningMaterialEditor({
   const saveSimpleMaterial = () => {
     const simpleSections: LessonSection[] = [
       { title: 'Concept', content: concept.trim(), order: 1 },
-      { title: 'Practice Goal', content: practiceGoal.trim(), order: 2 },
-      { title: 'Project Connection', content: projectConnection.trim(), order: 3 },
+      { title: 'Learning Outcomes', content: outcomes.trim(), order: 2 },
+      { title: 'Practice Goal', content: practiceGoal.trim(), order: 3 },
+      { title: 'Project Connection', content: projectConnection.trim(), order: 4 },
     ].filter((section) => section.content);
 
-    const remainingSections = sections.filter((section) => !/concept|theory|learn|practice|goal|exercise|project|connection|real/i.test(section.title));
+    const remainingSections = sections.filter((section) => !/concept|theory|learn|outcome|achieve|objective|practice|goal|exercise|project|connection|real/i.test(section.title));
     const nextSections = normalizeLessonSections([...simpleSections, ...remainingSections.map((section, index) => ({ ...section, order: simpleSections.length + index + 1 }))]);
 
     if (nextSections.length === 0) {
@@ -1771,57 +1859,170 @@ function SimpleLearningMaterialEditor({
     onSave(nextSections);
   };
 
-  return (
-    <section className="rounded-xl border border-blue-500/25 bg-[#0b1429] p-4 shadow-[0_16px_50px_rgba(37,99,235,0.08)]">
+  const editorBody = (
+    <>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-xs uppercase tracking-[0.16em] text-blue-300">Simple learning material</div>
           <p className="mt-1 max-w-2xl text-sm text-gray-400">
-            Add the three fields learners need first. Advanced sections can still be edited below.
+            Write rich learning content for users. Add headings, lists, code, images, and video links.
           </p>
         </div>
-        <button
-          onClick={saveSimpleMaterial}
-          className="rounded-lg bg-[#2563eb] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1d4ed8]"
-        >
-          Save material
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setIsFullscreen((value) => !value)}
+            className="rounded-lg border border-[#2a3b57] px-4 py-2 text-sm font-semibold text-gray-200 hover:bg-[#12213b]"
+          >
+            {isFullscreen ? 'Exit full screen' : 'Full screen editor'}
+          </button>
+          <button
+            onClick={saveSimpleMaterial}
+            className="rounded-lg bg-[#2563eb] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1d4ed8]"
+          >
+            Save material
+          </button>
+        </div>
       </div>
 
-      <div className="mt-4 grid gap-3 xl:grid-cols-3">
-        <label className="block">
+      <div className={`mt-5 grid gap-5 ${isFullscreen ? 'xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]' : 'xl:grid-cols-2'}`}>
+        <label className={`block ${isFullscreen ? 'xl:row-span-2' : ''}`}>
           <span className="text-sm font-semibold text-gray-200">Concept</span>
-          <textarea
+          <RichTextEditor
             value={concept}
-            onChange={(event) => setConcept(event.target.value)}
-            rows={5}
+            onChange={setConcept}
             placeholder="Explain the concept in simple language..."
-            className="mt-2 w-full resize-y rounded-lg border border-[#2a3b57] bg-[#111d31] px-3 py-2 text-sm leading-6 text-gray-100 outline-none focus:border-blue-500"
+            minHeight={isFullscreen ? 520 : 220}
+          />
+        </label>
+        <label className="block">
+          <span className="text-sm font-semibold text-gray-200">What users will achieve</span>
+          <RichTextEditor
+            value={outcomes}
+            onChange={setOutcomes}
+            placeholder="Add bullet outcomes, e.g. understand setup, create first component, explain folder structure..."
+            minHeight={isFullscreen ? 245 : 220}
           />
         </label>
         <label className="block">
           <span className="text-sm font-semibold text-gray-200">Practice Goal</span>
-          <textarea
+          <RichTextEditor
             value={practiceGoal}
-            onChange={(event) => setPracticeGoal(event.target.value)}
-            rows={5}
+            onChange={setPracticeGoal}
             placeholder="What should the learner build, debug, or explain?"
-            className="mt-2 w-full resize-y rounded-lg border border-[#2a3b57] bg-[#111d31] px-3 py-2 text-sm leading-6 text-gray-100 outline-none focus:border-blue-500"
+            minHeight={isFullscreen ? 245 : 220}
           />
         </label>
         <label className="block">
           <span className="text-sm font-semibold text-gray-200">Project Connection</span>
-          <textarea
+          <RichTextEditor
             value={projectConnection}
-            onChange={(event) => setProjectConnection(event.target.value)}
-            rows={5}
+            onChange={setProjectConnection}
             placeholder="Connect this lesson to a real project or bug..."
-            className="mt-2 w-full resize-y rounded-lg border border-[#2a3b57] bg-[#111d31] px-3 py-2 text-sm leading-6 text-gray-100 outline-none focus:border-blue-500"
+            minHeight={isFullscreen ? 245 : 220}
           />
         </label>
       </div>
+    </>
+  );
+
+  if (isFullscreen) {
+    return (
+      <section className="fixed inset-0 z-[100] overflow-y-auto bg-[#050b16] p-5 text-white">
+        <div className="mx-auto max-w-7xl rounded-2xl border border-blue-500/25 bg-[#0b1429] p-6 shadow-[0_24px_90px_rgba(0,0,0,0.55)]">
+          {editorBody}
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-xl border border-blue-500/25 bg-[#0b1429] p-4 shadow-[0_16px_50px_rgba(37,99,235,0.08)]">
+      {editorBody}
     </section>
   );
+}
+
+function RichTextEditor({
+  minHeight = 220,
+  onChange,
+  placeholder,
+  value,
+}: {
+  minHeight?: number;
+  onChange: (value: string) => void;
+  placeholder: string;
+  value: string;
+}) {
+  const editor = useEditor({
+    extensions: [StarterKit, ImageBlock, LinkMark],
+    content: value || '',
+    editorProps: {
+      attributes: {
+        class: 'px-3 py-2 text-sm leading-6 text-gray-100 outline-none',
+      },
+    },
+    onUpdate: ({ editor }) => onChange(editor.getHTML()),
+  });
+
+  useEffect(() => {
+    if (!editor) return;
+    const currentHtml = editor.getHTML();
+    const nextHtml = value || '';
+    if (currentHtml !== nextHtml) {
+      editor.commands.setContent(nextHtml, false);
+    }
+  }, [editor, value]);
+
+  const insertImage = () => {
+    if (!editor) return;
+    const url = window.prompt('Paste image URL');
+    if (!url) return;
+    editor.chain().focus().insertContent(`<img src="${escapeHtmlAttribute(url)}" alt="Learning visual" />`).run();
+  };
+
+  const insertVideo = () => {
+    if (!editor) return;
+    const url = window.prompt('Paste video URL');
+    if (!url) return;
+    editor.chain().focus().insertContent(`<p><a href="${escapeHtmlAttribute(url)}" target="_blank" rel="noreferrer">Watch video</a></p>`).run();
+  };
+
+  return (
+    <div className="relative mt-2 overflow-hidden rounded-lg border border-[#2a3b57] bg-[#111d31] focus-within:border-blue-500">
+      <div className="flex flex-wrap gap-1 border-b border-[#223655] bg-[#0b1429] p-2">
+        <EditorButton active={editor?.isActive('heading', { level: 2 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>H2</EditorButton>
+        <EditorButton active={editor?.isActive('heading', { level: 3 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}>H3</EditorButton>
+        <EditorButton active={editor?.isActive('bold')} onClick={() => editor?.chain().focus().toggleBold().run()}>B</EditorButton>
+        <EditorButton active={editor?.isActive('italic')} onClick={() => editor?.chain().focus().toggleItalic().run()}>I</EditorButton>
+        <EditorButton active={editor?.isActive('bulletList')} onClick={() => editor?.chain().focus().toggleBulletList().run()}>List</EditorButton>
+        <EditorButton active={editor?.isActive('orderedList')} onClick={() => editor?.chain().focus().toggleOrderedList().run()}>1.</EditorButton>
+        <EditorButton active={editor?.isActive('blockquote')} onClick={() => editor?.chain().focus().toggleBlockquote().run()}>Quote</EditorButton>
+        <EditorButton active={editor?.isActive('codeBlock')} onClick={() => editor?.chain().focus().toggleCodeBlock().run()}>Code</EditorButton>
+        <EditorButton onClick={insertImage}>Image</EditorButton>
+        <EditorButton onClick={insertVideo}>Video</EditorButton>
+      </div>
+      {!value && <div className="pointer-events-none absolute px-3 py-2 text-sm text-gray-500">{placeholder}</div>}
+      <div style={{ minHeight }}>
+        <EditorContent editor={editor} />
+      </div>
+    </div>
+  );
+}
+
+function EditorButton({ active = false, children, onClick }: { active?: boolean; children: React.ReactNode; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-md border px-2 py-1 text-xs transition ${active ? 'border-blue-500 bg-blue-600 text-white' : 'border-[#2a3b57] text-gray-300 hover:bg-[#172640]'}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function escapeHtmlAttribute(value: string) {
+  return value.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function PracticeTab({
@@ -2069,7 +2270,7 @@ function getConceptCards(task: LearningTask) {
   if (!sourceSections.length) return fallback;
   return sourceSections.slice(0, 5).map((section, index) => ({
     title: section.title,
-    text: section.content,
+    text: summarizeLearningHtml(section.content),
     icon: ['◎', '▣', '↑', 'this', '◇'][index] || '•',
     bg: ['bg-blue-500/20 text-blue-300', 'bg-green-500/20 text-green-300', 'bg-purple-500/20 text-purple-300', 'bg-amber-500/20 text-amber-300', 'bg-teal-500/20 text-teal-300'][index] || 'bg-blue-500/20 text-blue-300',
   }));
@@ -2123,7 +2324,7 @@ function getTheoryCards(sections: LessonSection[]) {
   return sections.slice().sort((a, b) => a.order - b.order).map((section, index) => ({
     title: section.title,
     content: section.content,
-    bullets: [section.content.length > 160 ? section.content.slice(0, 160) : section.content],
+    bullets: [],
     calloutTitle: 'Key Takeaway',
     callout: 'Connect this concept to your current project before moving on.',
     color: ['bg-blue-500/20 text-blue-300', 'bg-green-500/20 text-green-300', 'bg-purple-500/20 text-purple-300', 'bg-amber-500/20 text-amber-300', 'bg-teal-500/20 text-teal-300'][index] || 'bg-blue-500/20 text-blue-300',
@@ -2530,7 +2731,7 @@ function LessonSectionsEditor({
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="text-sm font-semibold text-gray-200">Section {section.order || index + 1}</span>
                   {section.title && <span className="truncate text-xs text-gray-400">{section.title}</span>}
-                  {section.content && <span className="truncate text-xs text-gray-600">{section.content}</span>}
+                  {section.content && <span className="truncate text-xs text-gray-600">{summarizeLearningHtml(section.content, 140)}</span>}
                 </div>
               </button>
               <button
@@ -2559,13 +2760,14 @@ function LessonSectionsEditor({
                     className="rounded-md border border-[#2a3b57] bg-[#1b2a42] px-2 py-2 text-sm text-gray-100 outline-none"
                   />
                 </div>
-                <textarea
-                  value={section.content}
-                  onChange={(event) => updateSection(index, { content: event.target.value })}
-                  rows={3}
-                  placeholder="Section content"
-                  className="mt-2 w-full resize-none rounded-md border border-[#2a3b57] bg-[#1b2a42] px-3 py-2 text-sm text-gray-100 outline-none"
-                />
+                <div className="mt-2">
+                  <RichTextEditor
+                    value={section.content}
+                    onChange={(content) => updateSection(index, { content })}
+                    placeholder="Write section content with headings, lists, code, images, or video links..."
+                    minHeight={260}
+                  />
+                </div>
                 <div className="mt-3 flex justify-end">
                   <button onClick={saveSectionAndOpenNew} className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-500">Save this section</button>
                 </div>

@@ -38,8 +38,76 @@ export default function CodeExerciseEditor({ taskId, exercise, isAdmin }: CodeEx
     }
   };
 
+  const runClientSideJavaScript = async () => {
+    setRunning(true);
+    setResult(null);
+
+    const workerSource = `
+      const logs = [];
+      const console = {
+        log: (...args) => logs.push(args.map((item) => typeof item === 'object' ? JSON.stringify(item) : String(item)).join(' ')),
+        error: (...args) => logs.push(args.map(String).join(' ')),
+        warn: (...args) => logs.push(args.map(String).join(' ')),
+      };
+      self.onmessage = (event) => {
+        try {
+          const runner = new Function('console', '"use strict";\\n' + event.data);
+          runner(console);
+          self.postMessage({ status: 'success', output: logs.join('\\n') || 'Code ran successfully.' });
+        } catch (error) {
+          self.postMessage({ status: 'error', error: error && error.message ? error.message : String(error) });
+        }
+      };
+    `;
+
+    const workerUrl = URL.createObjectURL(new Blob([workerSource], { type: 'text/javascript' }));
+    const worker = new Worker(workerUrl);
+    const timeout = window.setTimeout(() => {
+      worker.terminate();
+      URL.revokeObjectURL(workerUrl);
+      setResult({
+        _id: 'client-timeout',
+        planId: '',
+        taskId,
+        language,
+        code,
+        status: 'timeout',
+        error: 'Client-side demo timed out after 2 seconds.',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      setRunning(false);
+    }, 2000);
+
+    worker.onmessage = (event: MessageEvent<{ status: 'success' | 'error'; output?: string; error?: string }>) => {
+      window.clearTimeout(timeout);
+      worker.terminate();
+      URL.revokeObjectURL(workerUrl);
+      setResult({
+        _id: `client-${Date.now()}`,
+        planId: '',
+        taskId,
+        language,
+        code,
+        status: event.data.status,
+        output: event.data.output,
+        error: event.data.error,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      setRunning(false);
+    };
+
+    worker.postMessage(code);
+  };
+
   const runCode = async () => {
-    if (!isAdmin) return;
+    if (!isAdmin) {
+      if (language === 'javascript') {
+        await runClientSideJavaScript();
+      }
+      return;
+    }
     setRunning(true);
     const response = await learningApi.runSubmission(taskId, { language, code });
     if ('data' in response && response.data) {
@@ -76,10 +144,10 @@ export default function CodeExerciseEditor({ taskId, exercise, isAdmin }: CodeEx
       <div className="mt-3 flex flex-wrap gap-2">
         <button
           onClick={runCode}
-          disabled={!isAdmin || running}
+          disabled={running || (!isAdmin && language !== 'javascript')}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
         >
-          {running ? 'Running...' : 'Run Code'}
+          {running ? 'Running...' : isAdmin ? 'Run Code' : 'Run JS Demo'}
         </button>
         <button
           onClick={saveAttempt}
@@ -90,7 +158,11 @@ export default function CodeExerciseEditor({ taskId, exercise, isAdmin }: CodeEx
         </button>
       </div>
 
-      {!isAdmin && <p className="mt-3 text-sm text-gray-500">Log in as admin to save or run coding attempts.</p>}
+      {!isAdmin && (
+        <p className="mt-3 text-sm text-gray-500">
+          Visitors can run JavaScript in a temporary browser worker. Log in as admin to save attempts or run backend Python tests.
+        </p>
+      )}
 
       {result && (
         <div className="mt-4 rounded-lg border border-gray-800 bg-[#0b1222] p-4">

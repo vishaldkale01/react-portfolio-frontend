@@ -90,6 +90,55 @@ body {
     @apply px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all;
   }
 
+  .prose-rich {
+    @apply text-gray-300;
+  }
+
+  .prose-rich h2 {
+    @apply mb-3 mt-5 text-xl font-semibold leading-tight text-white;
+  }
+
+  .prose-rich h3 {
+    @apply mb-2 mt-4 text-lg font-semibold leading-tight text-gray-100;
+  }
+
+  .prose-rich p {
+    @apply mb-3;
+  }
+
+  .prose-rich ul,
+  .prose-rich ol {
+    @apply mb-3 ml-5 space-y-1;
+  }
+
+  .prose-rich ul {
+    @apply list-disc;
+  }
+
+  .prose-rich ol {
+    @apply list-decimal;
+  }
+
+  .prose-rich blockquote {
+    @apply my-4 border-l-4 border-blue-500/60 bg-blue-500/10 py-2 pl-4 text-blue-100;
+  }
+
+  .prose-rich a {
+    @apply text-blue-300 underline underline-offset-4 hover:text-blue-200;
+  }
+
+  .prose-rich code {
+    @apply rounded bg-slate-950/80 px-1.5 py-0.5 text-blue-100;
+  }
+
+  .prose-rich pre {
+    @apply my-4 overflow-x-auto rounded-xl border border-slate-700/60 bg-slate-950 p-4 text-sm text-blue-100;
+  }
+
+  .prose-rich img {
+    @apply my-4 max-h-[360px] w-full rounded-xl border border-slate-700/60 object-cover;
+  }
+
   .neural-bg {
     @apply relative;
   }

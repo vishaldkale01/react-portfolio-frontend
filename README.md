@@ -2,6 +2,10 @@
 
 React + TypeScript + Vite portfolio frontend with admin panels, learning tracker, and contact workflow.
 
+## Documentation
+
+Detailed documentation for the learning tracker module can be found in [LEARNING_MODULE.md](file:///c:/Users/VAIBHAV/MERN%20Portfolio%20Tracker/react-portfolio-frontend/docs/LEARNING_MODULE.md).
+
 ## Scripts
 
 - `npm run dev` - Start local development server.
